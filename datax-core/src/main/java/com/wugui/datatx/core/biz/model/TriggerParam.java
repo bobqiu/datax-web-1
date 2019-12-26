@@ -1,6 +1,8 @@
 package com.wugui.datatx.core.biz.model;
 
 import java.io.Serializable;
+import java.util.Date;
+
 
 /**
  * Created by xuxueli on 16/7/22.
@@ -26,8 +28,12 @@ public class TriggerParam implements Serializable{
     private int broadcastTotal;
 
     private String jobJson;
-
     private String processId;
+
+    private String replaceParam;
+    private String jvmParam;
+    private Date startTime;
+    private long triggerTime;
 
 
     public int getJobId() {
@@ -142,6 +148,38 @@ public class TriggerParam implements Serializable{
         this.processId = processId;
     }
 
+    public String getReplaceParam() {
+        return replaceParam;
+    }
+
+    public void setReplaceParam(String replaceParam) {
+        this.replaceParam = replaceParam;
+    }
+
+    public String getJvmParam() {
+        return jvmParam;
+    }
+
+    public void setJvmParam(String jvmParam) {
+        this.jvmParam = jvmParam;
+    }
+
+    public Date getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
+    }
+
+    public long getTriggerTime() {
+        return triggerTime;
+    }
+
+    public void setTriggerTime(long triggerTime) {
+        this.triggerTime = triggerTime;
+    }
+
     @Override
     public String toString() {
         return "TriggerParam{" +
@@ -158,6 +196,11 @@ public class TriggerParam implements Serializable{
                 ", broadcastIndex=" + broadcastIndex +
                 ", broadcastTotal=" + broadcastTotal +
                 ", jobJson=" + jobJson +
+                ", processId=" + processId +
+                ", replaceParam=" + replaceParam +
+                ", jvmParam=" + jvmParam +
+                ", startTime=" + startTime +
+                ", triggerTime=" + triggerTime +
                 '}';
     }
 

@@ -235,3 +235,20 @@ CREATE TABLE `job_user`  (
 INSERT INTO `job_user` VALUES (1, 'admin', '$2a$10$2KCqRbra0Yn2TwvkZxtfLuWuUP5KyCWsljO/ci5pLD27pqR3TV1vy', 'ROLE_ADMIN', NULL);
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+
+/**
+v2.1.1脚本更新
+*/
+ALTER TABLE `datax_web`.`job_info`
+ADD COLUMN `replace_param` VARCHAR(100) NULL DEFAULT NULL COMMENT '动态参数' AFTER `job_json`,
+ADD COLUMN `jvm_param` VARCHAR(200) NULL DEFAULT NULL COMMENT 'jvm参数' AFTER `replace_param`,
+ADD COLUMN `time_offset` INT(11) NULL DEFAULT '0'COMMENT '时间偏移量'  AFTER `jvm_param`;
+/**
+增量改版脚本更新
+ */
+ALTER TABLE `datax_web`.`job_info` DROP COLUMN `time_offset`;
+ALTER TABLE `datax_web`.`job_info`
+ADD COLUMN `inc_start_time` DATETIME NULL DEFAULT NULL COMMENT '增量初始时间' AFTER `jvm_param`;
+

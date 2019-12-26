@@ -80,4 +80,13 @@ public class JobInfo {
 	@ApiModelProperty("datax运行json")
 	private String jobJson;
 
+	@ApiModelProperty("脚本动态参数")
+	private String replaceParam;
+
+	@ApiModelProperty("jvm参数")
+	private String jvmParam;
+
+	@ApiModelProperty("增量初始时间")
+	private Date incStartTime;
+
 }
