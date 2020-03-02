@@ -1,10 +1,12 @@
 package com.wugui.datax.admin.tool.query;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.druid.util.JdbcConstants;
 import com.alibaba.druid.util.JdbcUtils;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.wugui.datatx.core.util.Constant;
+import com.wugui.datax.admin.core.util.LocalCacheUtil;
 import com.wugui.datax.admin.entity.JobJdbcDatasource;
 import com.wugui.datax.admin.tool.database.ColumnInfo;
 import com.wugui.datax.admin.tool.database.DasColumn;
@@ -32,8 +34,6 @@ import java.util.Map;
 public abstract class BaseQueryTool implements QueryToolInterface {
 
     protected static final Logger logger = LoggerFactory.getLogger(BaseQueryTool.class);
-
-    public static final Map<String, Connection> CREATED_CONNECTIONS = Maps.newConcurrentMap();
     /**
      * 用于获取查询语句
      */
@@ -53,7 +53,8 @@ public abstract class BaseQueryTool implements QueryToolInterface {
      * @param jobJdbcDatasource
      */
     BaseQueryTool(JobJdbcDatasource jobJdbcDatasource) throws SQLException {
-        if(!CREATED_CONNECTIONS.containsKey(jobJdbcDatasource.getDatasourceName())){
+        String currentDbType = JdbcUtils.getDbType(jobJdbcDatasource.getJdbcUrl(), jobJdbcDatasource.getJdbcDriverClass());
+        if (LocalCacheUtil.get(jobJdbcDatasource.getDatasourceName()) == null) {
             //这里默认使用 hikari 数据源
             HikariDataSource dataSource = new HikariDataSource();
             dataSource.setUsername(jobJdbcDatasource.getJdbcUsername());
@@ -61,22 +62,16 @@ public abstract class BaseQueryTool implements QueryToolInterface {
             dataSource.setJdbcUrl(jobJdbcDatasource.getJdbcUrl());
             dataSource.setDriverClassName(jobJdbcDatasource.getJdbcDriverClass());
             dataSource.setMaximumPoolSize(1);
-            dataSource.setMaxLifetime(45000);
-            dataSource.setIdleTimeout(35000);
             dataSource.setMinimumIdle(0);
             dataSource.setConnectionTimeout(30000);
-            dataSource.setConnectionTestQuery("SELECT 1");
-            //设为只读
-            dataSource.setReadOnly(true);
             this.datasource = dataSource;
             this.connection = this.datasource.getConnection();
-        }else{
-            this.connection =CREATED_CONNECTIONS.get(jobJdbcDatasource.getDatasourceName());
+        } else {
+            this.connection = (Connection) LocalCacheUtil.get(jobJdbcDatasource.getDatasourceName());
         }
-        String currentDbType = JdbcUtils.getDbType(jobJdbcDatasource.getJdbcUrl(), jobJdbcDatasource.getJdbcDriverClass());
         sqlBuilder = DatabaseMetaFactory.getByDbType(currentDbType);
         currentSchema = getSchema(jobJdbcDatasource.getJdbcUsername());
-        CREATED_CONNECTIONS.put(jobJdbcDatasource.getDatasourceName(),this.connection);
+        LocalCacheUtil.set(jobJdbcDatasource.getDatasourceName(), this.connection, 4 * 60 * 60 * 1000);
     }
 
     //根据connection获取schema
@@ -256,7 +251,7 @@ public abstract class BaseQueryTool implements QueryToolInterface {
     }
 
     @Override
-    public List<String> getColumnNames(String tableName) {
+    public List<String> getColumnNames(String tableName, String datasource) {
 
         List<String> res = Lists.newArrayList();
         Statement stmt = null;
@@ -273,7 +268,17 @@ public abstract class BaseQueryTool implements QueryToolInterface {
 
             int columnCount = metaData.getColumnCount();
             for (int i = 1; i <= columnCount; i++) {
-                res.add(metaData.getColumnName(i));
+                String columnName = metaData.getColumnName(i);
+                if (JdbcConstants.HIVE.equals(datasource)) {
+                    if (columnName.contains(Constant.SPLIT_POINT)) {
+                        res.add(i - 1 + Constant.SPLIT_SCOLON + columnName.substring(columnName.indexOf(Constant.SPLIT_POINT) + 1) + Constant.SPLIT_SCOLON + metaData.getColumnTypeName(i));
+                    } else {
+                        res.add(i - 1 + Constant.SPLIT_SCOLON + columnName + Constant.SPLIT_SCOLON + metaData.getColumnTypeName(i));
+                    }
+                } else {
+                    res.add(columnName);
+                }
+
             }
         } catch (SQLException e) {
             logger.error("[getColumnNames Exception] --> "
@@ -307,6 +312,19 @@ public abstract class BaseQueryTool implements QueryToolInterface {
             JdbcUtils.close(stmt);
         }
         return tables;
+    }
+
+    public Boolean dataSourceTest() {
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+            if (metaData.getDatabaseProductName().length() > 0) {
+                return true;
+            }
+        } catch (SQLException e) {
+            logger.error("[dataSourceTest Exception] --> "
+                    + "the exception message is:" + e.getMessage());
+        }
+        return false;
     }
 
     /**

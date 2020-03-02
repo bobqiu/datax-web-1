@@ -9,14 +9,19 @@ import com.wugui.datatx.core.handler.IJobHandler;
 import com.wugui.datatx.core.handler.annotation.JobHandler;
 import com.wugui.datatx.core.log.JobLogger;
 import com.wugui.datatx.core.thread.ProcessCallbackThread;
+import com.wugui.datatx.core.util.Constant;
+import com.wugui.datatx.core.util.DateUtil;
 import com.wugui.datatx.core.util.ProcessUtil;
+import com.wugui.datax.executor.util.SystemUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 /**
  * DataX任务运行
@@ -35,48 +40,51 @@ public class ExecutorJobHandler extends IJobHandler {
     private String dataXPyPath;
 
     @Override
-    public ReturnT<String> executeDataX(TriggerParam tgParam) throws Exception {
-
+    public ReturnT<String> execute(TriggerParam tgParam) throws Exception {
         int exitValue = -1;
-        BufferedReader bufferedReader = null;
+        Thread inputThread = null;
+        Thread errThread = null;
         String tmpFilePath;
-        String line;
         //生成Json临时文件
         tmpFilePath = generateTemJsonFile(tgParam.getJobJson());
         try {
-            String doc = buildStartCommand(tgParam.getJvmParam(), tgParam.getTriggerTime(), tgParam.getReplaceParam(), tgParam.getStartTime());
-            JobLogger.log("------------------命令参数: " + doc);
-            // command process
-            //"--loglevel=debug"
-            Process process = null;
-            if (StringUtils.isNotBlank(doc)) {
-                process = Runtime.getRuntime().exec(new String[]{"python", dataXPyPath, doc.replaceAll(DataxOption.SPLIT_SPACE, DataxOption.TRANSFORM_SPLIT_SPACE), tmpFilePath});
-            } else {
-                process = Runtime.getRuntime().exec(new String[]{"python", dataXPyPath, tmpFilePath});
-            }
+            String[] cmdarrayFinal = buildCmd(tgParam, tmpFilePath);
+            final Process process = Runtime.getRuntime().exec(cmdarrayFinal);
             String processId = ProcessUtil.getProcessId(process);
             JobLogger.log("------------------DataX运行进程Id: " + processId);
             jobTmpFiles.put(processId, tmpFilePath);
             //更新任务进程Id
             ProcessCallbackThread.pushCallBack(new HandleProcessCallbackParam(tgParam.getLogId(), tgParam.getLogDateTime(), processId));
-            InputStreamReader input = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
-            bufferedReader = new BufferedReader(input);
-            while ((line = bufferedReader.readLine()) != null) {
-                JobLogger.log(line);
-            }
-            InputStreamReader error = new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8);
-            bufferedReader = new BufferedReader(error);
-            while ((line = bufferedReader.readLine()) != null) {
-                JobLogger.log(line);
-            }
-            // command exit
-            process.waitFor();
-            exitValue = process.exitValue();
+            // log-thread
+            inputThread = new Thread(() -> {
+                try {
+                    reader(new BufferedInputStream(process.getInputStream()));
+                } catch (IOException e) {
+                    JobLogger.log(e);
+                }
+            });
+            errThread = new Thread(() -> {
+                try {
+                    reader(new BufferedInputStream(process.getErrorStream()));
+                } catch (IOException e) {
+                    JobLogger.log(e);
+                }
+            });
+            inputThread.start();
+            errThread.start();
+            // process-wait
+            exitValue = process.waitFor();      // exit code: 0=success, 1=error
+            // log-thread join
+            inputThread.join();
+            errThread.join();
         } catch (Exception e) {
             JobLogger.log(e);
         } finally {
-            if (bufferedReader != null) {
-                bufferedReader.close();
+            if (inputThread != null && inputThread.isAlive()) {
+                inputThread.interrupt();
+            }
+            if (errThread != null && errThread.isAlive()) {
+                errThread.interrupt();
             }
             //  删除临时文件
             if (FileUtil.exist(tmpFilePath)) {
@@ -90,22 +98,85 @@ public class ExecutorJobHandler extends IJobHandler {
         }
     }
 
-    private String buildStartCommand(String jvmParam, long triggerTime, String replaceParam, Date startTime) {
+    private String[] buildCmd(TriggerParam tgParam, String tmpFilePath) {
+        // command process
+        //"--loglevel=debug"
+        List<String> cmdarray = new ArrayList<>();
+        cmdarray.add("python");
+        String dataXHomePath = SystemUtils.getDataXHomePath();
+        if (StringUtils.isNotEmpty(dataXHomePath)) dataXPyPath = dataXHomePath + DataxOption.DEFAULT_DATAX_PY;
+        cmdarray.add(dataXPyPath);
+        String doc = buildDataXParam(tgParam);
+        if (StringUtils.isNotBlank(doc)) {
+            cmdarray.add(doc.replaceAll(DataxOption.SPLIT_SPACE, DataxOption.TRANSFORM_SPLIT_SPACE));
+        }
+        cmdarray.add(tmpFilePath);
+        return cmdarray.toArray(new String[cmdarray.size()]);
+    }
+
+    /**
+     * 数据流reader（Input自动关闭，Output不处理）
+     *
+     * @param inputStream
+     * @throws IOException
+     */
+    private static void reader(InputStream inputStream) throws IOException {
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                JobLogger.log(line);
+            }
+            reader.close();
+            inputStream = null;
+        } finally {
+            if (inputStream != null) {
+                inputStream.close();
+            }
+        }
+    }
+
+    private String buildDataXParam(TriggerParam tgParam) {
         StringBuilder doc = new StringBuilder();
+        String jvmParam = tgParam.getJvmParam();
+        String partitionStr = tgParam.getPartitionInfo();
         if (StringUtils.isNotBlank(jvmParam)) {
             doc.append(DataxOption.JVM_CM).append(DataxOption.TRANSFORM_QUOTES).append(jvmParam).append(DataxOption.TRANSFORM_QUOTES);
         }
-        long tgSecondTime = triggerTime / 1000;
-        if (StringUtils.isNotBlank(replaceParam) && triggerTime > 0 && startTime != null) {
-            long lastTime = startTime.getTime() / 1000;
-            if (doc.indexOf(DataxOption.JVM_CM) != -1) doc.append(DataxOption.SPLIT_SPACE);
-            doc.append(DataxOption.PARAMS_CM).append(DataxOption.TRANSFORM_QUOTES).append(String.format(replaceParam, lastTime, tgSecondTime)).append(DataxOption.TRANSFORM_QUOTES);
+        long tgSecondTime = tgParam.getTriggerTime().getTime() / 1000;
+        if (StringUtils.isNotBlank(tgParam.getReplaceParam())) {
+            long lastTime = tgParam.getStartTime().getTime() / 1000;
+            if (doc.length() > 0) doc.append(DataxOption.SPLIT_SPACE);
+            doc.append(DataxOption.PARAMS_CM).append(DataxOption.TRANSFORM_QUOTES).append(String.format(tgParam.getReplaceParam(), lastTime, tgSecondTime));
+            if (StringUtils.isNotBlank(partitionStr)) {
+                doc.append(DataxOption.SPLIT_SPACE);
+                List<String> partitionInfo = Arrays.asList(partitionStr.split(Constant.SPLIT_COMMA));
+                doc.append(String.format(DataxOption.PARAMS_CM_V_PT, buildPartition(partitionInfo)));
+            }
+            doc.append(DataxOption.TRANSFORM_QUOTES);
+        }else{
+            if (StringUtils.isNotBlank(partitionStr)) {
+                List<String> partitionInfo = Arrays.asList(partitionStr.split(Constant.SPLIT_COMMA));
+                if (doc.length() > 0) doc.append(DataxOption.SPLIT_SPACE);
+                doc.append(DataxOption.PARAMS_CM).append(DataxOption.TRANSFORM_QUOTES).append(String.format(DataxOption.PARAMS_CM_V_PT, buildPartition(partitionInfo))).append(DataxOption.TRANSFORM_QUOTES);
+            }
         }
+        JobLogger.log("------------------命令参数: " + doc);
         return doc.toString();
+    }
+
+    private String buildPartition(List<String> partitionInfo) {
+        String field = partitionInfo.get(0);
+        int timeOffset = Integer.parseInt(partitionInfo.get(1));
+        String timeFormat = partitionInfo.get(2);
+        String partitionTime = DateUtil.format(DateUtil.addDays(new Date(), timeOffset), timeFormat);
+        return field + Constant.EQUAL + partitionTime;
     }
 
     private String generateTemJsonFile(String jobJson) {
         String tmpFilePath;
+        String dataXHomePath = SystemUtils.getDataXHomePath();
+        if (StringUtils.isNotEmpty(dataXHomePath)) jsonpath = dataXHomePath + DataxOption.DEFAULT_JSON;
         if (!FileUtil.exist(jsonpath)) FileUtil.mkdir(jsonpath);
         tmpFilePath = jsonpath + "jobTmp-" + IdUtil.simpleUUID() + ".conf";
         // 根据json写入到临时本地文件
