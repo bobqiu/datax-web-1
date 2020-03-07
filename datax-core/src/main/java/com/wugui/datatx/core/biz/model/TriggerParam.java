@@ -32,8 +32,10 @@ public class TriggerParam implements Serializable{
 
     private String replaceParam;
     private String jvmParam;
-    private int timeOffset;
-    private long triggerTime;
+    private Date startTime;
+    private Date triggerTime;
+
+    private String partitionInfo;
 
 
     public int getJobId() {
@@ -164,20 +166,28 @@ public class TriggerParam implements Serializable{
         this.jvmParam = jvmParam;
     }
 
-    public int getTimeOffset() {
-        return timeOffset;
+    public Date getStartTime() {
+        return startTime;
     }
 
-    public void setTimeOffset(int timeOffset) {
-        this.timeOffset = timeOffset;
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
     }
 
-    public long getTriggerTime() {
+    public Date getTriggerTime() {
         return triggerTime;
     }
 
-    public void setTriggerTime(long triggerTime) {
+    public void setTriggerTime(Date triggerTime) {
         this.triggerTime = triggerTime;
+    }
+
+    public String getPartitionInfo() {
+        return partitionInfo;
+    }
+
+    public void setPartitionInfo(String partitionInfo) {
+        this.partitionInfo = partitionInfo;
     }
 
     @Override
@@ -199,8 +209,9 @@ public class TriggerParam implements Serializable{
                 ", processId=" + processId +
                 ", replaceParam=" + replaceParam +
                 ", jvmParam=" + jvmParam +
-                ", timeOffset=" + timeOffset +
+                ", startTime=" + startTime +
                 ", triggerTime=" + triggerTime +
+                ", partitionInfo=" + partitionInfo +
                 '}';
     }
 

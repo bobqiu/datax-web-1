@@ -1,9 +1,9 @@
 package com.wugui.datatx.core.handler;
 
-import com.google.common.collect.Maps;
 import com.wugui.datatx.core.biz.model.ReturnT;
 import com.wugui.datatx.core.biz.model.TriggerParam;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -21,8 +21,7 @@ public abstract class IJobHandler {
 	/** fail timeout */
 	public static final ReturnT<String> FAIL_TIMEOUT = new ReturnT<String>(502, null);
 
-	public static final ConcurrentMap<String, String> jobTmpFiles = Maps.newConcurrentMap();
-
+	public static final ConcurrentMap<String, String> jobTmpFiles = new ConcurrentHashMap<>();
 	/**
 	 * execute handler, invoked when executor receives a scheduling request
 	 *
@@ -30,7 +29,7 @@ public abstract class IJobHandler {
 	 * @return
 	 * @throws Exception
 	 */
-	public abstract ReturnT<String> executeDataX(TriggerParam tgParam) throws Exception;
+	public abstract ReturnT<String> execute(TriggerParam tgParam) throws Exception;
 
 	/**
 	 * init handler, invoked when JobThread init

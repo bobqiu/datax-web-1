@@ -6,6 +6,7 @@ import com.wugui.datatx.core.biz.model.HandleProcessCallbackParam;
 import com.wugui.datatx.core.biz.model.RegistryParam;
 import com.wugui.datatx.core.biz.model.ReturnT;
 import com.wugui.datatx.core.handler.IJobHandler;
+import com.wugui.datax.admin.core.kill.KillJob;
 import com.wugui.datax.admin.core.thread.JobTriggerPoolHelper;
 import com.wugui.datax.admin.core.trigger.TriggerTypeEnum;
 import com.wugui.datax.admin.core.util.I18nUtil;
@@ -77,12 +78,14 @@ public class AdminBizImpl implements AdminBiz {
 
         // trigger success, to trigger child job
         String callbackMsg = null;
-        if (IJobHandler.SUCCESS.getCode() == handleCallbackParam.getExecuteResult().getCode()) {
-            JobInfo xxlJobInfo = jobInfoMapper.loadById(log.getJobId());
-            if (xxlJobInfo != null && xxlJobInfo.getChildJobId() != null && xxlJobInfo.getChildJobId().trim().length() > 0) {
+        int resultCode = handleCallbackParam.getExecuteResult().getCode();
+        if (IJobHandler.SUCCESS.getCode() == resultCode) {
+            JobInfo jobInfo = jobInfoMapper.loadById(log.getJobId());
+            jobInfoMapper.incrementTimeUpdate(log.getJobId(), log.getTriggerTime());
+            if (jobInfo != null && jobInfo.getChildJobId() != null && jobInfo.getChildJobId().trim().length() > 0) {
                 callbackMsg = "<br><br><span style=\"color:#00c0ef;\" > >>>>>>>>>>>" + I18nUtil.getString("jobconf_trigger_child_run") + "<<<<<<<<<<< </span><br>";
 
-                String[] childJobIds = xxlJobInfo.getChildJobId().split(",");
+                String[] childJobIds = jobInfo.getChildJobId().split(",");
                 for (int i = 0; i < childJobIds.length; i++) {
                     int childJobId = (childJobIds[i] != null && childJobIds[i].trim().length() > 0 && isNumeric(childJobIds[i])) ? Integer.valueOf(childJobIds[i]) : -1;
                     if (childJobId > 0) {
@@ -108,6 +111,11 @@ public class AdminBizImpl implements AdminBiz {
             }
         }
 
+        //kill execution timeout DataX process
+        if (!StringUtils.isEmpty(log.getProcessId()) && IJobHandler.FAIL_TIMEOUT.getCode() == resultCode) {
+            KillJob.trigger(log.getId(), log.getTriggerTime(), log.getExecutorAddress(), log.getProcessId());
+        }
+
         // handle msg
         StringBuffer handleMsg = new StringBuffer();
         if (log.getHandleMsg() != null) {
@@ -122,9 +130,10 @@ public class AdminBizImpl implements AdminBiz {
 
         // success, save log
         log.setHandleTime(new Date());
-        log.setHandleCode(handleCallbackParam.getExecuteResult().getCode());
+        log.setHandleCode(resultCode);
         log.setHandleMsg(handleMsg.toString());
         jobLogMapper.updateHandleInfo(log);
+        jobInfoMapper.updateLastHandleCode(log.getJobId(), resultCode);
 
         return ReturnT.SUCCESS;
     }

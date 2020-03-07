@@ -4,6 +4,7 @@ import com.wugui.datax.admin.entity.JobInfo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.Date;
 import java.util.List;
 
 
@@ -19,21 +20,21 @@ public interface JobInfoMapper {
 								  @Param("jobGroup") int jobGroup,
 								  @Param("triggerStatus") int triggerStatus,
 								  @Param("jobDesc") String jobDesc,
-								  @Param("executorHandler") String executorHandler,
+								  @Param("glueType") String glueType,
 								  @Param("author") String author);
 	public int pageListCount(@Param("offset") int offset,
                              @Param("pagesize") int pagesize,
                              @Param("jobGroup") int jobGroup,
                              @Param("triggerStatus") int triggerStatus,
                              @Param("jobDesc") String jobDesc,
-                             @Param("executorHandler") String executorHandler,
+                             @Param("glueType") String glueType,
                              @Param("author") String author);
 
 	public int save(JobInfo info);
 
 	public JobInfo loadById(@Param("id") int id);
 
-	public int update(JobInfo xxlJobInfo);
+	public int update(JobInfo jobInfo);
 
 	public int delete(@Param("id") long id);
 
@@ -45,5 +46,8 @@ public interface JobInfoMapper {
 
 	public int scheduleUpdate(JobInfo xxlJobInfo);
 
+	public int incrementTimeUpdate(@Param("id") int id, @Param("incStartTime") Date incStartTime);
+
+	public int updateLastHandleCode(@Param("id") int id,@Param("lastHandleCode")int lastHandleCode);
 
 }

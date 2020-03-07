@@ -1,8 +1,6 @@
 package com.wugui.datax.admin.core.trigger;
 
-import cn.hutool.core.date.DateUtil;
 import com.wugui.datatx.core.biz.ExecutorBiz;
-import com.wugui.datatx.core.biz.model.IncrementalParam;
 import com.wugui.datatx.core.biz.model.ReturnT;
 import com.wugui.datatx.core.biz.model.TriggerParam;
 import com.wugui.datatx.core.enums.ExecutorBlockStrategyEnum;
@@ -18,6 +16,7 @@ import com.wugui.datax.rpc.util.ThrowableUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Calendar;
 import java.util.Date;
 
 /**
@@ -101,7 +100,10 @@ public class JobTrigger {
         String shardingParam = (ExecutorRouteStrategyEnum.SHARDING_BROADCAST == executorRouteStrategyEnum) ? String.valueOf(index).concat("/").concat(String.valueOf(total)) : null;
 
         // 1、save log-id
-        Date triggerTime = new Date();
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(new Date());
+        calendar.set(Calendar.MILLISECOND,0);
+        Date triggerTime = calendar.getTime();
         JobLog jobLog = new JobLog();
         jobLog.setJobGroup(jobInfo.getJobGroup());
         jobLog.setJobId(jobInfo.getId());
@@ -126,8 +128,10 @@ public class JobTrigger {
         triggerParam.setJobJson(jobInfo.getJobJson());
         triggerParam.setJvmParam(jobInfo.getJvmParam());
         triggerParam.setReplaceParam(jobInfo.getReplaceParam());
-        triggerParam.setTimeOffset(jobInfo.getTimeOffset());
-        triggerParam.setTriggerTime(jobInfo.getTriggerLastTime());
+        triggerParam.setStartTime(jobInfo.getIncStartTime());
+        triggerParam.setTriggerTime(triggerTime);
+        triggerParam.setPartitionInfo(jobInfo.getPartitionInfo());
+
         // 3、init address
         String address = null;
         ReturnT<String> routeAddressResult = null;

@@ -34,6 +34,13 @@
 		<result column="trigger_last_time" property="triggerLastTime" />
 		<result column="trigger_next_time" property="triggerNextTime" />
 		<result column="job_json" property="jobJson" />
+
+		<result column="replace_param" property="replaceParam" />
+		<result column="jvm_param" property="jvmParam" />
+		<result column="inc_start_time" property="incStartTime" />
+		<result column="partition_info" property="partitionInfo" />
+
+		<result column="last_handle_code" property="lastHandleCode" />
 	</resultMap>
 
 	<sql id="Base_Column_List">
@@ -59,7 +66,12 @@
 		t.trigger_status,
 		t.trigger_last_time,
 		t.trigger_next_time,
-		t.job_json
+		t.job_json,
+		t.replace_param,
+		t.jvm_param,
+		t.inc_start_time,
+		t.partition_info,
+		t.last_handle_code
 	</sql>
 
 	<select id="pageList" parameterType="java.util.HashMap" resultMap="JobInfo">
@@ -75,8 +87,8 @@
 			<if test="jobDesc != null and jobDesc != ''">
 				AND t.job_desc like CONCAT(CONCAT('%', #{jobDesc}), '%')
 			</if>
-			<if test="executorHandler != null and executorHandler != ''">
-				AND t.executor_handler like CONCAT(CONCAT('%', #{executorHandler}), '%')
+			<if test="glueType != null and glueType != ''">
+				AND t.glue_type like CONCAT(CONCAT('%', #{glueType}), '%')
 			</if>
 			<if test="author != null and author != ''">
 				AND t.author like CONCAT(CONCAT('%', #{author}), '%')
@@ -99,8 +111,8 @@
 			<if test="jobDesc != null and jobDesc != ''">
 				AND t.job_desc like CONCAT(CONCAT('%', #{jobDesc}), '%')
 			</if>
-			<if test="executorHandler != null and executorHandler != ''">
-				AND t.executor_handler like CONCAT(CONCAT('%', #{executorHandler}), '%')
+			<if test="glueType != null and glueType != ''">
+				AND t.glue_type like CONCAT(CONCAT('%', #{glueType}), '%')
 			</if>
 			<if test="author != null and author != ''">
 				AND t.author like CONCAT(CONCAT('%', #{author}), '%')
@@ -131,7 +143,12 @@
 			trigger_status,
 			trigger_last_time,
 			trigger_next_time,
-			job_json
+			job_json,
+			replace_param,
+			jvm_param,
+			inc_start_time,
+			partition_info,
+			last_handle_code
 		) VALUES (
 			#{jobGroup},
 			#{jobCron},
@@ -154,7 +171,12 @@
 			#{triggerStatus},
 			#{triggerLastTime},
 			#{triggerNextTime},
-			#{jobJson}
+			#{jobJson},
+			#{replaceParam},
+			#{jvmParam},
+			#{incStartTime},
+			#{partitionInfo},
+			#{lastHandleCode}
 		);
 		<!--<selectKey resultType="java.lang.Integer" order="AFTER" keyProperty="id">
 			SELECT LAST_INSERT_ID()
@@ -191,7 +213,12 @@
 			trigger_status = #{triggerStatus},
 			trigger_last_time = #{triggerLastTime},
 			trigger_next_time = #{triggerNextTime},
-			job_json=#{jobJson}
+			job_json=#{jobJson},
+			replace_param=#{replaceParam},
+			jvm_param=#{jvmParam},
+			inc_start_time=#{incStartTime},
+			partition_info=#{partitionInfo},
+			last_handle_code=#{lastHandleCode}
 		WHERE id = #{id}
 	</update>
 
@@ -231,4 +258,17 @@
 		WHERE id = #{id}
 	</update>
 
+	<update id="incrementTimeUpdate" parameterType="java.util.HashMap">
+		UPDATE job_info
+		SET
+			inc_start_time = #{incStartTime}
+		WHERE id = #{id}
+	</update>
+
+	<update id="updateLastHandleCode" parameterType="java.util.HashMap">
+		UPDATE job_info
+		SET
+			last_handle_code = #{lastHandleCode}
+		WHERE id = #{id}
+	</update>
 </mapper>
